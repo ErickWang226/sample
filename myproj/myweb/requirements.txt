@@ -1,0 +1,4 @@
+Django==1.11.9
+pytz==2018.4
+psycopg2
+uwsgi

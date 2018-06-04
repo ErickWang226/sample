@@ -1,0 +1,42 @@
+version: '3'
+
+services:
+
+  db:
+    container_name: db-container
+    image: postgres
+    environment:
+      POSTGRES_PASSWORD: password123
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data/
+
+  nginx:
+    container_name: ng-container
+    build: ./nginx
+    restart: always
+    ports:
+      - "8080:80"
+    volumes:
+      - web_data:/docker_web
+      - ./log:/var/log/nginx
+    depends_on:
+      - web
+
+  web:
+    container_name: web-container
+    build: ./myweb
+    # command: python manage.py runserver 0.0.0.0:8000
+    # command: uwsgi --http :8000 --module myweb.wsgi
+    command: uwsgi --ini uwsgi.ini
+    volumes:
+      - web_data:/docker_web
+    ports:
+      - "8002:8000"
+    depends_on:
+      - db
+
+volumes:
+  pg_data:
+  web_data:

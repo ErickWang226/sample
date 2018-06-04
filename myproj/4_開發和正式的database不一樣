@@ -1,0 +1,150 @@
+# 設置兩個不一樣的database
+----
+#### 怎麼樣不一樣？
+1. 開發：django內建的SQlite3
+2. 正式：postgres
+
+#### 為什麼？
+正式的網站想配置一個比較好的資料庫，聽說postgres比較高級
+
+#### 為什麼不兩邊都用postgres？
+在本地端配置好複雜，學不會。但是用docker隨便包一包丟上去網路上卻很簡單
+
+#### 具體怎麼做？
+開發時，用內建資料庫，跑程式的時候用runserver指令，看看程式碼跑得對不對就好。每一個大段落，就包成docker看看換了資料庫會不會出問題
+
+#### 可以預先想到的問題是什麼？
+在SQlite上面先設置好的資料，可以成功再轉到postgres嗎？好擔心...
+
+----
+
+### 增加網頁內容
+先修改一下首頁
+
+````
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+  <head>
+    <meta charset="utf-8">
+    <title>解析圖</title>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
+  </head>
+  <body>    
+    <div class="container">
+        <nav class="navbar navbar-expand-lg navbar-light bg-light">
+            <a class="navbar-brand" href="{% url 'home' %}">首頁</a>
+                <ul class="navbar-nav mr-auto">
+                    <li class="nav-item active">
+                        <a class="nav-link" href="">介紹 <span class="sr-only">(current)</span></a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="">分析</a>
+                    </li>
+                </ul>
+        </nav>
+        <div class="jumbotron">
+            <h1>這裡是首頁</h1>
+
+        </div>
+    </div>
+
+  </body>
+</html>
+````
+
++ 套用bootstrap
++ 有點特別的，標題列裡面的超連結都用template tag
++ 原先是寫死連結
+> 網址 --> url找到網址符合 --> 執行views.home --> 開啟home.html
++ template跑法
+> url 'home' --> 去url找到名子是home --> 執行views.home --> 開啟home.html
++ 差別是，以後如果網站架構要變，網址改變的話，原本的做法要去每個超連結去改，很麻煩。
+
+
+----
+
+### 加個資料庫
+建一組主要資料，網頁使用者給了A，就從這組資料抓A對應到的內容給使用者看。
+
+所以一組資料只需要```名子```和```內容```兩個欄位，另外再做一組資料，給下拉式輸入用的。
+
+在models.py裡面
+
+```
+from django.db import models
+
+
+class MyIntData(models.Model):
+    name = models.CharField(max_length=10)
+    content = models.TextField(blank=False)
+
+    def __str__(self):
+        return self.name
+
+class MyColData(models.Model):
+    name = models.CharField(max_length=10)
+    content = models.TextField(blank=False)
+
+    def __str__(self):
+        return self.name
+```
+設兩組資料庫，每組資料有name跟content，再來去admin.py登記model
+
+```
+from django.contrib import admin
+from myapp.models import MyIntData, MyColData
+# Register your models here.
+admin.site.register(MyIntData)
+admin.site.register(MyColData)
+```
+如果想要讓admin的頁面更豐富可以這樣改
+
+```
+from django.contrib import admin
+from myapp.models import MyIntData, MyColData
+# Register your models here.
+admin.site.register(MyIntData)
+# admin.site.register(MyColData)
+
+
+# 用decorate來導入MyColData，建立一個class，讓admin頁面多了content
+
+@admin.register(MyColData)
+class MyColDataAdmin(admin.ModelAdmin):
+    list_display = ('name', 'content',)
+```
+
+
+然後migrate資料，再做個超級使用者
+
+````
+python manage.py makemigrations my_app
+python manage.py migrate
+python manage.py createsuperuser
+````
+可以登入admin去看看都可以了，都沒問題了吧！
+
+### 再來測試docker
+看看在docker裡面的postgres能不能順利運作。用kitematic刪除所有的container，再下指令刪除image，還有volume
+
+```
+docker rmi $(docker images -q)
+docker volume prune
+```
+
+然後改一下local.py裡面資料庫變成postgres，執行
+
+```
+docker-compose up
+```
+成功！！這時候記得先進去docker裡面，執行以下指令
+
+```
+python manage.py makemigrations myapp
+python manage.py migrate
+python manage.py collectstatic
+python manage.py createsuperuser
+```
+登入admin，一切都沒問題！代表postgres資料庫順利運行，所以可以在本機端用SQlite開發，然後真的用docker部署時，自動變成postgres
+
+唯一的問題是，本來本機端是有data，但到了docker裡面是空的，這個問題要思考一下到底要怎麼做...
